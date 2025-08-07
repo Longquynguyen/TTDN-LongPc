@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import classNames from 'classnames/bind';
-import { Layout, Row, Col, Card, Input, Slider, Select, Empty, Spin } from 'antd';
+import { Layout, Row, Col, Card, Input, Slider, Select, Empty, Spin, Pagination } from 'antd';
 import styles from './Category.module.scss';
 import Header from '../../Components/Header/Header';
 import { useParams } from 'react-router-dom';
@@ -17,7 +17,7 @@ const cx = classNames.bind(styles);
 function Category() {
     const { id } = useParams();
 
-    const [products, setProducts] = useState([]);
+    const [allProducts, setAllProducts] = useState([]);
     const [filters, setFilters] = useState({
         search: '',
         priceRange: [0, 100000000],
@@ -27,6 +27,10 @@ function Category() {
     });
     const [loading, setLoading] = useState(false);
     const [availableFilters, setAvailableFilters] = useState([]);
+    const [pagination, setPagination] = useState({
+        current: 1,
+        pageSize: 12,
+    });
 
     // Reset filters when category changes
     useEffect(() => {
@@ -36,6 +40,7 @@ function Category() {
             componentIds: [],
         }));
         setAvailableFilters([]);
+        setPagination((prev) => ({ ...prev, current: 1 }));
     }, [id]);
 
     const sortOptions = [
@@ -65,7 +70,7 @@ function Category() {
 
                 if (id === 'all') {
                     const res = await requestGetAllProducts(params);
-                    setProducts(res.metadata.products);
+                    setAllProducts(res.metadata.products);
 
                     // Lưu các bộ lọc đặc biệt nếu có
                     if (res.metadata.filters) {
@@ -75,7 +80,7 @@ function Category() {
                     params.id = id;
 
                     const res = await requestGetProductCategory(params);
-                    setProducts(res.metadata);
+                    setAllProducts(Array.isArray(res.metadata) ? res.metadata : res.metadata.products || []);
                 }
             } catch (error) {
                 console.error('Error fetching products:', error);
@@ -89,8 +94,27 @@ function Category() {
         return () => clearTimeout(timeoutId);
     }, [id, filters]);
 
+    // Paginate products on the client side
+    const paginatedProducts = useMemo(() => {
+        const startIndex = (pagination.current - 1) * pagination.pageSize;
+        const endIndex = startIndex + pagination.pageSize;
+        return allProducts.slice(startIndex, endIndex);
+    }, [allProducts, pagination.current, pagination.pageSize]);
+
     const handleComponentPartChange = (productIds) => {
         setFilters({ ...filters, componentIds: productIds });
+        setPagination((prev) => ({ ...prev, current: 1 }));
+    };
+
+    const handlePageChange = (page, pageSize) => {
+        setPagination({
+            ...pagination,
+            current: page,
+            pageSize: pageSize,
+        });
+
+        // Scroll to top when changing page
+        window.scrollTo(0, 0);
     };
 
     return (
@@ -104,7 +128,10 @@ function Category() {
                                 <h4>Tìm kiếm</h4>
                                 <Search
                                     placeholder="Tên sản phẩm..."
-                                    onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                                    onChange={(e) => {
+                                        setFilters({ ...filters, search: e.target.value });
+                                        setPagination((prev) => ({ ...prev, current: 1 }));
+                                    }}
                                     allowClear
                                 />
                             </div>
@@ -117,7 +144,10 @@ function Category() {
                                     max={100000000}
                                     step={1000000}
                                     defaultValue={filters.priceRange}
-                                    onChange={(value) => setFilters({ ...filters, priceRange: value })}
+                                    onChange={(value) => {
+                                        setFilters({ ...filters, priceRange: value });
+                                        setPagination((prev) => ({ ...prev, current: 1 }));
+                                    }}
                                     tooltip={{
                                         formatter: (value) => `${value.toLocaleString('vi-VN')}đ`,
                                     }}
@@ -130,7 +160,10 @@ function Category() {
                                     style={{ width: '100%' }}
                                     options={sortOptions}
                                     defaultValue="newest"
-                                    onChange={(value) => setFilters({ ...filters, sort: value })}
+                                    onChange={(value) => {
+                                        setFilters({ ...filters, sort: value });
+                                        setPagination((prev) => ({ ...prev, current: 1 }));
+                                    }}
                                 />
                             </div>
                         </Card>
@@ -149,14 +182,28 @@ function Category() {
                             <div className={cx('loading')}>
                                 <Spin size="large" />
                             </div>
-                        ) : products.length > 0 ? (
-                            <Row gutter={[16, 16]}>
-                                {products.map((product) => (
-                                    <Col key={product.id} xs={24} sm={12} md={8} lg={6}>
-                                        <CardBody product={product} />
-                                    </Col>
-                                ))}
-                            </Row>
+                        ) : allProducts.length > 0 ? (
+                            <>
+                                <Row gutter={[16, 16]}>
+                                    {paginatedProducts.map((product) => (
+                                        <Col key={product.id} xs={24} sm={12} md={8} lg={6}>
+                                            <CardBody product={product} />
+                                        </Col>
+                                    ))}
+                                </Row>
+                                <div className={cx('pagination-container')}>
+                                    <Pagination
+                                        current={pagination.current}
+                                        pageSize={pagination.pageSize}
+                                        total={allProducts.length}
+                                        onChange={handlePageChange}
+                                        showSizeChanger
+                                        pageSizeOptions={['12', '24', '36', '48']}
+                                        showTotal={(total) => `Tổng ${total} sản phẩm`}
+                                        className={cx('pagination')}
+                                    />
+                                </div>
+                            </>
                         ) : (
                             <Empty description="Không tìm thấy sản phẩm nào" />
                         )}
