@@ -15,7 +15,6 @@ class controllerProducts {
             name,
             price,
             description,
-
             images,
             category,
             stock,
@@ -102,6 +101,7 @@ class controllerProducts {
             gpu,
             power,
             caseComputer,
+            componentType,
             coolers,
             id,
         } = req.body;
@@ -126,6 +126,7 @@ class controllerProducts {
             power,
             caseComputer,
             coolers,
+            componentType,
         });
 
         new OK({
@@ -358,7 +359,7 @@ class controllerProducts {
             if (maxPrice) whereClause.price[Op.lte] = maxPrice;
         }
 
-        // Lọc theo ID sản phẩm cụ thể nếu có
+        // // Lọc theo ID sản phẩm cụ thể nếu có
         if (productIds) {
             const ids = productIds.split(',');
             whereClause.id = {
@@ -396,10 +397,139 @@ class controllerProducts {
     }
 
     async getProductSearch(req, res) {
-        const { search } = req.query;
-        const products = await modelProducts.findAll({ where: { name: { [Op.like]: `%${search}%` } } });
+        const { search, minPrice, maxPrice, sort, productIds } = req.query;
+
+        let whereClause = {};
+        let order = [];
+
+        // Xử lý sắp xếp
+        switch (sort) {
+            case 'price-asc':
+                order.push(['price', 'ASC']);
+                break;
+            case 'price-desc':
+                order.push(['price', 'DESC']);
+                break;
+            case 'discount':
+                order.push(['discount', 'DESC']);
+                break;
+            default: // newest
+                order.push(['createdAt', 'DESC']);
+        }
+
+        // Thêm điều kiện tìm kiếm theo tên
+        // Nếu không có search, trả về tất cả sản phẩm
+        if (search && search.trim() !== '') {
+            whereClause.name = {
+                [Op.like]: `%${search}%`,
+            };
+        }
+
+        // Thêm điều kiện lọc theo giá
+        if (minPrice || maxPrice) {
+            whereClause.price = {};
+            if (minPrice) whereClause.price[Op.gte] = minPrice;
+            if (maxPrice) whereClause.price[Op.lte] = maxPrice;
+        }
+
+        // Lọc theo ID sản phẩm cụ thể nếu có
+        if (productIds) {
+            const ids = productIds.split(',');
+            whereClause.id = {
+                [Op.in]: ids,
+            };
+        }
+
+        const products = await modelProducts.findAll({
+            where: whereClause,
+            order,
+        });
+
+        // Sắp xếp lại theo giá sau giảm giá nếu cần
+        if (sort === 'price-asc' || sort === 'price-desc') {
+            products.sort((a, b) => {
+                const priceA = a.price * (1 - a.discount / 100);
+                const priceB = b.price * (1 - b.discount / 100);
+                return sort === 'price-asc' ? priceA - priceB : priceB - priceA;
+            });
+        }
+
         new OK({
             message: 'Get product search successfully',
+            metadata: products,
+        }).send(res);
+    }
+
+    async getProductSearchByCategory(req, res) {
+        const { category, search, minPrice, maxPrice, sort, productIds, componentType } = req.query;
+
+        let whereClause = {};
+        let order = [];
+
+        // Chỉ thêm điều kiện categoryId nếu category không phải là 'all'
+        if (category !== 'all') {
+            whereClause.categoryId = category;
+        }
+
+        // Thêm điều kiện componentType nếu có
+        if (componentType) {
+            whereClause.componentType = componentType;
+        }
+
+        // Xử lý sắp xếp
+        switch (sort) {
+            case 'price-asc':
+                order.push(['price', 'ASC']);
+                break;
+            case 'price-desc':
+                order.push(['price', 'DESC']);
+                break;
+            case 'discount':
+                order.push(['discount', 'DESC']);
+                break;
+            default: // newest
+                order.push(['createdAt', 'DESC']);
+        }
+
+        // Thêm điều kiện tìm kiếm theo tên
+        // Nếu không có search, trả về tất cả sản phẩm trong category
+        if (search && search.trim() !== '') {
+            whereClause.name = {
+                [Op.like]: `%${search}%`,
+            };
+        }
+
+        // Thêm điều kiện lọc theo giá
+        if (minPrice || maxPrice) {
+            whereClause.price = {};
+            if (minPrice) whereClause.price[Op.gte] = minPrice;
+            if (maxPrice) whereClause.price[Op.lte] = maxPrice;
+        }
+
+        // Lọc theo ID sản phẩm cụ thể nếu có
+        if (productIds) {
+            const ids = productIds.split(',');
+            whereClause.id = {
+                [Op.in]: ids,
+            };
+        }
+
+        const products = await modelProducts.findAll({
+            where: whereClause,
+            order,
+        });
+
+        // Sắp xếp lại theo giá sau giảm giá nếu cần
+        if (sort === 'price-asc' || sort === 'price-desc') {
+            products.sort((a, b) => {
+                const priceA = a.price * (1 - a.discount / 100);
+                const priceB = b.price * (1 - b.discount / 100);
+                return sort === 'price-asc' ? priceA - priceB : priceB - priceA;
+            });
+        }
+
+        new OK({
+            message: 'Get product search by category successfully',
             metadata: products,
         }).send(res);
     }
