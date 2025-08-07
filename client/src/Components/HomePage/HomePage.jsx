@@ -7,8 +7,8 @@ import { useEffect, useState } from 'react';
 import { requestGetBlogs, requestGetProductHotSale, requestGetProductsByCategories } from '../../config/request';
 
 import Slider from 'react-slick';
-import { useNavigate } from 'react-router-dom';
-import { Row, Col, Card, Typography, Divider } from 'antd';
+import { useNavigate, Link } from 'react-router-dom';
+import { Row, Col, Card, Typography, Divider, Button } from 'antd';
 
 const { Title, Paragraph } = Typography;
 
@@ -18,8 +18,8 @@ const settings = {
     speed: 500,
     slidesToShow: 6,
     slidesToScroll: 1,
-    autoplay: true,             // Thêm dòng này
-    autoplaySpeed: 3000         // Và dòng này (3 giây chuyển 1 lần)
+    autoplay: true, // Thêm dòng này
+    autoplaySpeed: 3000, // Và dòng này (3 giây chuyển 1 lần)
 };
 const cx = classNames.bind(styles);
 
@@ -135,9 +135,12 @@ function HomePage() {
 
             <div className={cx('blogs-section')}>
                 <Divider>
-                    <Title level={2} style={{ textAlign: 'center', margin: '30px 0 20px' }}>
+                    <Title style={{ margin: '20px' }} level={2}>
                         Tin tức và Kết nối
                     </Title>
+                    <Link to="/blogs">
+                        <Button>Xem tất cả</Button>
+                    </Link>
                 </Divider>
 
                 <Row gutter={[24, 24]} style={{ marginTop: '20px' }}>
