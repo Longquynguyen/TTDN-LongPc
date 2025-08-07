@@ -7,14 +7,7 @@ import { requestGetCategory, requestGetProductSearch, requestLogout } from '../.
 import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../../hooks/useStore';
 import { Avatar, Dropdown } from 'antd';
-import {
-    UserOutlined,
-    ShoppingOutlined,
-    LogoutOutlined,
-    WindowsOutlined,
-    SearchOutlined,
-    PhoneOutlined,
-} from '@ant-design/icons';
+import { UserOutlined, ShoppingOutlined, LogoutOutlined, WindowsOutlined, SearchOutlined } from '@ant-design/icons';
 
 import useDebounce from '../../hooks/useDebounce';
 
@@ -31,7 +24,7 @@ function Header() {
         fetchData();
     }, []);
 
-    const { dataUser } = useStore();
+    const { dataUser, dataCart } = useStore();
 
     const Navigate = useNavigate();
 
@@ -63,10 +56,6 @@ function Header() {
 
     const [selectedCategory, setSelectedCategory] = useState('all');
 
-    const handleNavigate = () => {
-        Navigate(`/category/${selectedCategory}`);
-    };
-
     const [search, setSearch] = useState('');
 
     const debounceSearch = useDebounce(search, 500);
@@ -82,6 +71,28 @@ function Header() {
         }
     }, [debounceSearch]);
 
+    const handleNavigate = () => {
+        if (search.trim() !== '') {
+            Navigate(`/search/${selectedCategory}/${encodeURIComponent(search)}`);
+            setSearch('');
+            setProductSearch([]);
+        } else {
+            Navigate(`/category/${selectedCategory}`);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && search.trim() !== '') {
+            handleNavigate();
+        }
+    };
+
+    const handleSearchItemClick = (itemId) => {
+        Navigate(`/products/${itemId}`);
+        setSearch('');
+        setProductSearch([]);
+    };
+
     return (
         <div className={cx('wrapper')}>
             <div className={cx('inner')}>
@@ -95,7 +106,9 @@ function Header() {
                     <select name="" id="" onChange={(e) => setSelectedCategory(e.target.value)}>
                         <option value="all">Tất cả danh mục</option>
                         {category.map((item) => (
-                            <option value={item.id}>{item.name}</option>
+                            <option key={item.id} value={item.id}>
+                                {item.name}
+                            </option>
                         ))}
                     </select>
                     <input
@@ -103,28 +116,34 @@ function Header() {
                         placeholder="Tìm kiếm sản phẩm..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={handleKeyDown}
                         onBlur={() => {
                             setTimeout(() => {
                                 setProductSearch([]);
-                            }, 1000);
-                            setSearch('');
+                            }, 200);
                         }}
                     />
                     <button onClick={handleNavigate}>
                         <SearchOutlined />
                     </button>
-                    {debounceSearch && (
+                    {debounceSearch && productSearch.length > 0 && (
                         <div className={cx('search-result')}>
                             <ul style={{ width: '100%' }}>
                                 {productSearch.length === 0 ? (
                                     <li>Không tìm thấy sản phẩm</li>
                                 ) : (
                                     productSearch.map((item) => (
-                                        <li key={item.id} onClick={() => Navigate(`/products/${item.id}`)}>
+                                        <li key={item.id} onClick={() => handleSearchItemClick(item.id)}>
                                             <img src={item.images.split(',')[0]} alt="" />
                                             <div>
                                                 <h3>{item.name}</h3>
-                                                <p>{item.price.toLocaleString('vi-VN')} VNĐ</p>
+                                                <p>
+                                                    {(item.discount
+                                                        ? item.price - (item.price * item.discount) / 100
+                                                        : item.price
+                                                    ).toLocaleString('vi-VN')}{' '}
+                                                    VNĐ
+                                                </p>
                                             </div>
                                         </li>
                                     ))
@@ -158,7 +177,7 @@ function Header() {
 
                             <Link to="/cart" className={cx('cart-button')}>
                                 <ShoppingOutlined style={{ fontSize: '24px' }} />
-                                Giỏ hàng
+                                Giỏ hàng ({dataCart.length})
                             </Link>
                         </div>
                         <Dropdown menu={{ items }} placement="bottomRight" arrow>
@@ -185,8 +204,8 @@ function Header() {
             </div>
             <div className={cx('category-list')}>
                 {category.map((item) => (
-                    <Link to={`/category/${item.id}`}>
-                        <div className={cx('category-item')} key={item.id}>
+                    <Link key={item.id} to={`/category/${item.id}`}>
+                        <div className={cx('category-item')}>
                             <img src={item.image} alt="" />
                             <span>{item.name}</span>
                         </div>
