@@ -1,12 +1,11 @@
 import classNames from 'classnames/bind';
 import styles from './Cart.module.scss';
 import Header from '../../Components/Header/Header';
-import { Card, Table, Input, Form, Select, Button, Checkbox, Space, message } from 'antd';
+import { Card, Table, Input, Form, Button, Checkbox, Space, message } from 'antd';
 import { DeleteOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import {
     requestDeleteCart,
-    requestGetCart,
     requestPayment,
     requestUpdateInfoCart,
     requestUpdateQuantityCart,
@@ -18,12 +17,9 @@ import { useNavigate } from 'react-router-dom';
 const cx = classNames.bind(styles);
 
 function Cart() {
-    const [dataCart, setDataCart] = useState([]);
     const [checkBox, setCheckBox] = useState(false);
-    const fetchData = async () => {
-        const res = await requestGetCart();
-        setDataCart(res.metadata);
-    };
+
+    const { fetchCart, dataCart, dataUser } = useStore();
 
     const navigate = useNavigate();
 
@@ -31,18 +27,13 @@ function Cart() {
         return dataCart.reduce((total, item) => total + item.totalPrice, 0);
     }, [dataCart]);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
-    // Fake data for cart items
-
     const handleDeleteCart = async (id) => {
         try {
             const data = {
                 cartId: id,
             };
             await requestDeleteCart(data);
-            await fetchData();
+            fetchCart();
             message.success('Xoá sản phẩm trong giỏ hàng thành công');
         } catch (error) {
             message.error(error.response.data.message);
@@ -120,15 +111,23 @@ function Cart() {
                     type="text"
                     danger
                     icon={<DeleteOutlined />}
-                    style={{ fontSize: '16px' }}
+                    style={{ fontSize: '16px'}}
                 />
             ),
         },
     ];
 
     const [fullName, setFullName] = useState('');
-    const [phone, setPhone] = useState('');
+    const [phone, setPhone] = useState(null);
     const [address, setAddress] = useState('');
+
+    useEffect(() => {
+        if (dataUser) {
+            setFullName(dataUser.fullName);
+            setPhone(dataUser.phone);
+            setAddress(dataUser.address);
+        }
+    }, [dataUser]);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -137,6 +136,7 @@ function Cart() {
                 phone,
                 address,
             };
+
             await requestUpdateInfoCart(data);
         };
         const timeoutId = setTimeout(() => {
@@ -145,15 +145,15 @@ function Cart() {
         return () => clearTimeout(timeoutId);
     }, [fullName, phone, address]);
 
-    const { dataUser } = useStore();
-
-    useEffect(() => {
-        setFullName(dataUser.fullName);
-        setPhone(dataUser.phone);
-        setAddress(dataUser.address);
-    }, [dataUser]);
-
     const handlePayment = async (typePayment) => {
+        if (!checkBox) {
+            message.error('Bạn phải đồng ý với các Điều kiện giao dịch chung của website');
+            return;
+        }
+        if (!fullName || !phone || !address) {
+            message.error('Vui lòng nhập đầy đủ thông tin');
+            return;
+        }
         try {
             const data = {
                 typePayment,
@@ -161,6 +161,7 @@ function Cart() {
             if (typePayment === 'COD') {
                 const res = await requestPayment(data);
                 message.success('Đặt hàng thành công');
+                await fetchCart();
                 navigate(`/payment/${res.metadata}`);
             }
             if (typePayment === 'MOMO') {
@@ -192,8 +193,26 @@ function Cart() {
                                     <Form.Item label="Họ tên" required>
                                         <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
                                     </Form.Item>
-                                    <Form.Item label="SĐT" required>
-                                        <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+                                    <Form.Item
+                                        label="SĐT"
+                                        required
+                                        validateTrigger={['onChange', 'onBlur']}
+                                        rules={[
+                                            {
+                                                pattern: /^0\d{0,9}$/,
+                                                message: 'SĐT phải bắt đầu bằng số 0 và tối đa 10 số',
+                                            },
+                                            {
+                                                required: true,
+                                                message: 'SĐT không được để trống',
+                                            },
+                                        ]}
+                                    >
+                                        <Input
+                                            value={phone}
+                                            onChange={(e) => setPhone(e.target.value)}
+                                            maxLength={10}
+                                        />
                                     </Form.Item>
 
                                     <Form.Item label="Địa chỉ" required>
