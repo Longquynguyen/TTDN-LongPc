@@ -44,18 +44,50 @@ function CategoryComponentFilter({ onChange, categoryId, filters, selectedIds = 
         }
     }, [selectedIds]);
 
+    // Hàm loại bỏ trùng lặp các component dựa trên tên
+    const deduplicateComponentsByName = (components) => {
+        const uniqueComponents = new Map();
+
+        components.forEach((component) => {
+            if (!component.name) return;
+
+            // Nếu chưa có component này trong Map, thêm vào
+            if (!uniqueComponents.has(component.name)) {
+                uniqueComponents.set(component.name, {
+                    id: component.id,
+                    name: component.name,
+                    type: component.type,
+                    productId: component.productId,
+                    // Lưu tất cả các productId có cùng tên component
+                    allProductIds: [component.productId],
+                });
+            } else {
+                // Nếu đã có, thêm productId vào mảng allProductIds
+                const existing = uniqueComponents.get(component.name);
+                existing.allProductIds.push(component.productId);
+            }
+        });
+
+        return Array.from(uniqueComponents.values());
+    };
+
     useEffect(() => {
         const fetchComponentParts = async () => {
             setLoading(true);
             try {
                 // Nếu đã có dữ liệu filters được truyền từ component cha
                 if (filters && filters.length > 0) {
-                    // Chỉ cấu trúc lại dữ liệu
-                    setComponentGroups(filters);
+                    // Tạo bản sao của filters và loại bỏ trùng lặp
+                    const deduplicatedFilters = filters.map((group) => ({
+                        ...group,
+                        components: deduplicateComponentsByName(group.components),
+                    }));
+
+                    setComponentGroups(deduplicatedFilters);
 
                     // Khởi tạo các bộ lọc ban đầu
                     const filtered = {};
-                    filters.forEach((group) => {
+                    deduplicatedFilters.forEach((group) => {
                         filtered[group.type] = [...group.components];
                     });
 
@@ -72,12 +104,18 @@ function CategoryComponentFilter({ onChange, categoryId, filters, selectedIds = 
 
                 const result = await requestGetCategoryByComponentTypes(params);
 
+                // Loại bỏ trùng lặp các component trong result
+                const deduplicatedResult = result.map((group) => ({
+                    ...group,
+                    components: deduplicateComponentsByName(group.components),
+                }));
+
                 // Cấu trúc dữ liệu của các linh kiện nhóm theo loại
-                setComponentGroups(result);
+                setComponentGroups(deduplicatedResult);
 
                 // Khởi tạo các bộ lọc ban đầu
                 const filtered = {};
-                result.forEach((group) => {
+                deduplicatedResult.forEach((group) => {
                     filtered[group.type] = [...group.components];
                 });
 
@@ -120,11 +158,11 @@ function CategoryComponentFilter({ onChange, categoryId, filters, selectedIds = 
         });
     };
 
-    const handleComponentPartChange = (checked, partId, productId) => {
+    const handleComponentPartChange = (checked, partId, productIds) => {
         let newSelectedParts;
 
         if (checked) {
-            newSelectedParts = [...selectedParts, { id: partId, productId }];
+            newSelectedParts = [...selectedParts, { id: partId, productIds }];
         } else {
             newSelectedParts = selectedParts.filter((item) => item.id !== partId);
         }
@@ -132,9 +170,9 @@ function CategoryComponentFilter({ onChange, categoryId, filters, selectedIds = 
         setSelectedParts(newSelectedParts);
 
         if (onChange) {
-            // Truyền mảng productIds cho component cha
-            const productIds = newSelectedParts.map((item) => item.productId);
-            onChange(productIds);
+            // Truyền tất cả các productIds cho component cha
+            const allProductIds = newSelectedParts.flatMap((item) => item.productIds);
+            onChange(allProductIds);
         }
     };
 
@@ -190,7 +228,7 @@ function CategoryComponentFilter({ onChange, categoryId, filters, selectedIds = 
                                     <div key={part.id} className={cx('component-item')}>
                                         <Checkbox
                                             onChange={(e) =>
-                                                handleComponentPartChange(e.target.checked, part.id, part.productId)
+                                                handleComponentPartChange(e.target.checked, part.id, part.allProductIds)
                                             }
                                             checked={selectedParts.some((item) => item.id === part.id)}
                                         >
